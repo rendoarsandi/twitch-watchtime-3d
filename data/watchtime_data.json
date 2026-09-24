@@ -1,0 +1,60 @@
+{
+  "channel": "newchannel",
+  "chatters": [
+    {
+      "username": "pixel_architect",
+      "displayName": "PixelArchitect",
+      "color": "#9146FF",
+      "watchSeconds": 80155,
+      "messagesCount": 342,
+      "firstSeen": "2026-09-24T08:58:37.567Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    },
+    {
+      "username": "couch_potato_prime",
+      "displayName": "CouchPotatoPrime",
+      "color": "#00FF7F",
+      "watchSeconds": 26655,
+      "messagesCount": 189,
+      "firstSeen": "2026-09-24T08:58:37.567Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    },
+    {
+      "username": "lurker_supreme",
+      "displayName": "LurkerSupreme",
+      "color": "#1E90FF",
+      "watchSeconds": 10555,
+      "messagesCount": 94,
+      "firstSeen": "2026-09-24T08:58:37.567Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    },
+    {
+      "username": "chair_enjoyer",
+      "displayName": "ChairEnjoyer",
+      "color": "#FFD700",
+      "watchSeconds": 4255,
+      "messagesCount": 31,
+      "firstSeen": "2026-09-24T08:58:37.567Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    },
+    {
+      "username": "neon_vibe_99",
+      "displayName": "NeonVibe99",
+      "color": "#FF1493",
+      "watchSeconds": 2575,
+      "messagesCount": 12,
+      "firstSeen": "2026-09-24T08:58:37.567Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    },
+    {
+      "username": "test_user",
+      "displayName": "test_user",
+      "color": "#FF1493",
+      "watchSeconds": 5755,
+      "messagesCount": 0,
+      "firstSeen": "2026-09-24T08:58:37.616Z",
+      "lastSeen": "2026-09-24T09:34:33.300Z"
+    }
+  ],
+  "savedAt": "2026-09-24T09:34:37.740Z"
+}
