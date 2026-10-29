@@ -1,94 +1,16 @@
 import React from 'react';
-import { Camera, Sun, Moon, Sunset, Eye, Box, Compass } from 'lucide-react';
+import { Camera, Sun, Moon, Sunset, ScanLine, House, PanelsTopLeft, RotateCcw, Focus } from 'lucide-react';
 
-export function ViewportControls({
-  cameraPreset,
-  onChangeCamera,
-  viewMode,
-  onChangeViewMode,
-  lightingMode,
-  onChangeLightingMode
-}) {
-  const cameraPresets = [
-    { id: 'isometric', label: 'Iso 3D' },
-    { id: 'dollhouse', label: 'Dollhouse' },
-    { id: 'topdown', label: 'Top-Down' },
-    { id: 'studio', label: 'Interior' },
-    { id: 'cinematic', label: 'Auto Orbit' }
-  ];
-
-  const viewModes = [
-    { id: 'cutaway', label: 'Cutaway', icon: '✂️' },
-    { id: 'exterior', label: 'Exterior', icon: '🏠' },
-    { id: 'xray', label: 'X-Ray', icon: '💎' }
-  ];
-
-  const lightingModes = [
-    { id: 'day', label: 'Day', icon: <Sun size={13} /> },
-    { id: 'sunset', label: 'Sunset', icon: <Sunset size={13} /> },
-    { id: 'night', label: 'Cyber Night', icon: <Moon size={13} /> }
-  ];
-
-  return (
-    <div className="viewport-controls-cluster">
-      {/* Camera Angle Selector */}
-      <div className="control-group">
-        <div className="control-header">
-          <Camera size={12} />
-          <span>CAMERA</span>
-        </div>
-        <div className="btn-segmented">
-          {cameraPresets.map((cam) => (
-            <button
-              key={cam.id}
-              onClick={() => onChangeCamera(cam.id)}
-              className={`seg-btn ${cameraPreset === cam.id ? 'active' : ''}`}
-            >
-              {cam.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* House Architecture View Mode */}
-      <div className="control-group">
-        <div className="control-header">
-          <Eye size={12} />
-          <span>HOUSE VIEW</span>
-        </div>
-        <div className="btn-segmented">
-          {viewModes.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => onChangeViewMode(v.id)}
-              className={`seg-btn ${viewMode === v.id ? 'active' : ''}`}
-            >
-              <span>{v.icon}</span>
-              <span>{v.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Lighting / Environment Atmosphere */}
-      <div className="control-group">
-        <div className="control-header">
-          <Sun size={12} />
-          <span>LIGHTING</span>
-        </div>
-        <div className="btn-segmented">
-          {lightingModes.map((light) => (
-            <button
-              key={light.id}
-              onClick={() => onChangeLightingMode(light.id)}
-              className={`seg-btn ${lightingMode === light.id ? 'active' : ''}`}
-            >
-              {light.icon}
-              <span>{light.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+export function ViewportControls({ cameraPreset, onChangeCamera, viewMode, onChangeViewMode, lightingMode, onChangeLightingMode, onResetCamera, onFocusFurniture, hasSelection }) {
+  return <div className="viewport-toolbar">
+    <div className="view-segments" role="group" aria-label="House view">
+      {[['cutaway', 'Cutaway', PanelsTopLeft], ['exterior', 'Exterior', House], ['xray', 'X-ray', ScanLine]].map(([id, label, Icon]) => <button key={id} className={`seg-btn ${viewMode === id ? 'active' : ''}`} onClick={() => onChangeViewMode(id)} aria-pressed={viewMode === id} title={label}><Icon size={14} /><span>{label}</span></button>)}
     </div>
-  );
+    <span className="toolbar-divider" />
+    <label className="camera-select"><Camera size={14} /><select aria-label="Camera angle" value={cameraPreset} onChange={e => onChangeCamera(e.target.value)}><option value="isometric">Isometric</option><option value="dollhouse">Dollhouse</option><option value="topdown">Floor plan</option><option value="studio">Interior</option><option value="cinematic">Auto orbit</option></select></label>
+    <div className="lighting-segments" role="group" aria-label="Lighting">
+      {[['day', 'Daylight', Sun], ['sunset', 'Golden hour', Sunset], ['night', 'Night', Moon]].map(([id, label, Icon]) => <button key={id} className={`icon-action-btn ${lightingMode === id ? 'active' : ''}`} onClick={() => onChangeLightingMode(id)} aria-pressed={lightingMode === id} aria-label={label} title={label}><Icon size={16} /></button>)}
+    </div>
+    <div className="camera-actions"><button onClick={onFocusFurniture} className="icon-action-btn" disabled={!hasSelection} aria-label="Focus selected furniture" title="Focus selected object (F)"><Focus size={16} /></button><button onClick={onResetCamera} className="icon-action-btn" aria-label="Reset camera" title="Fit home in view (R)"><RotateCcw size={15} /></button></div>
+  </div>;
 }

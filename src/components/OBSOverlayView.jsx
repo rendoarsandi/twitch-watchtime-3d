@@ -1,7 +1,7 @@
 import React from 'react';
 import { ThreeCanvas } from '../three/ThreeCanvas.jsx';
 import { formatWatchTime } from './ChatterList.jsx';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, House, Box } from 'lucide-react';
 
 export function OBSOverlayView({
   selectedChatter,
@@ -41,8 +41,8 @@ export function OBSOverlayView({
         </div>
 
         <div className="obs-tier-row">
-          <span className="obs-tier-name">🏠 {currentTier.name}</span>
-          <span className="obs-furniture-scale">📦 {scales.overall}x Furniture</span>
+          <span className="obs-tier-name"><House size={12} /> {currentTier.name}</span>
+          <span className="obs-furniture-scale"><Box size={12} /> {scales.overall}× furniture</span>
         </div>
       </div>
 

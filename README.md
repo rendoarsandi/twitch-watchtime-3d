@@ -56,6 +56,20 @@ Dynamic layout scaling automatically expands furniture placement outwards propor
 
 ---
 
+## Scene and workspace controls
+
+The 3D homes use procedural wood, stone, and roof textures, framed window openings, soft directional shadows, and studio reflections. The landscape grows with the property. Cutaway removes the roof and near-side walls; Exterior restores the full building; X-ray keeps the structure translucent. Daylight, Golden hour, and Night lighting blend smoothly.
+
+- **Explore:** drag to orbit and scroll or pinch to zoom. Camera framing adapts to each viewer’s house tier and scale. Use the reset button to fit the home again after exploring.
+- **Inspect:** open **Objects** or click furniture in the scene. The selected object is outlined. Choose **Focus in scene**, or press **F** while the canvas is focused, for a closer look.
+- **Keyboard:** focus the canvas with Tab. Arrow keys orbit, **+ / −** zoom, **R** resets the camera, and **Escape** clears the object selection. Automatic orbit, growth animation, and celebrations respect reduced-motion preferences.
+- **Growth:** watch-time multipliers remain visible in Objects. Furniture adapts to the room dimensions to keep all eight pieces visible as the architecture expands.
+- **Smaller screens:** switch between **Community**, **3D home**, and **Activity & objects** using the workspace tabs. On desktop, expand the scene to hide the side panels.
+
+The interface loads before the 3D engine. If WebGL is unavailable, the dashboard remains usable and offers a retry action. Scene resources are released when switching to and from OBS mode.
+
+---
+
 ## Getting Started
 
 ### Prerequisites
@@ -82,7 +96,8 @@ Open [http://localhost:3001](http://localhost:3001) in your browser!
 ```bash
 npm test
 ```
-Runs 24 automated tests across 5 test suites covering:
+Runs 25 automated tests covering:
+- Restoring original materials and glass transparency after X-ray and cutaway across all five 3D house tiers.
 - Tier calculation boundary values (0s, 14m, 15m, 1h, 5h, 20h, negative values).
 - Continuous house scaling math (`calculateHouseScale`).
 - Monotonic furniture scaling calculations across all 8 furniture pieces and gigantism mode.

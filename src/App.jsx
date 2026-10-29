@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from './components/TopBar.jsx';
 import { ChatterList } from './components/ChatterList.jsx';
 import { TelemetryHUD } from './components/TelemetryHUD.jsx';
-import { TwitchChatFeed } from './components/TwitchChatFeed.jsx';
+import { SceneInspector } from './components/SceneInspector.jsx';
+import { Box, Users, MessageSquare, Maximize2, Minimize2, MousePointer2, X, AlertCircle, RotateCcw } from 'lucide-react';
 import { ViewportControls } from './components/ViewportControls.jsx';
 import { OBSOverlayView } from './components/OBSOverlayView.jsx';
 import { ThreeCanvas } from './three/ThreeCanvas.jsx';
@@ -12,6 +13,13 @@ import * as api from './services/api.js';
 
 export function App() {
   const [channel, setChannel] = useState('streamer');
+  const [serverConnected, setServerConnected] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [actionError, setActionError] = useState('');
+  const [inspectorTab, setInspectorTab] = useState('activity');
+  const [mobilePanel, setMobilePanel] = useState('home');
+  const [focusMode, setFocusMode] = useState(false);
+  const [cameraAction, setCameraAction] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [multiplier, setMultiplier] = useState(1);
   const [simulationEnabled, setSimulationEnabled] = useState(true);
@@ -48,7 +56,7 @@ export function App() {
   // Fetch initial data
   const loadInitialData = useCallback(async () => {
     try {
-      const status = await api.fetchStatus();
+      const [status, chatterList] = await Promise.all([api.fetchStatus(), api.fetchChatters()]);
       setChannel(status.channel || 'streamer');
       setIsConnected(status.isConnected);
       setMultiplier(status.multiplier);
@@ -57,13 +65,12 @@ export function App() {
       if (status.liveOnly !== undefined) setLiveOnly(status.liveOnly);
       if (status.streamInfo) setStreamInfo(status.streamInfo);
 
-      const chatterList = await api.fetchChatters();
       setChatters(chatterList);
-      if (chatterList.length > 0) {
-        setSelectedChatter(chatterList[0]);
-      }
+      setSelectedChatter(prev => chatterList.find(c => c.username === prev?.username) || chatterList[0] || null);
     } catch (err) {
-      console.warn('API fetch warning (waiting for WS):', err.message);
+      setActionError('Couldn’t load watch time. Check that the tracker server is running, then retry.');
+    } finally {
+      setDataLoading(false);
     }
   }, []);
 
@@ -77,9 +84,12 @@ export function App() {
 
     const unsubscribe = wsClient.subscribe((type, data) => {
       if (type === 'CONNECTION_CHANGE') {
-        setIsConnected(data.isConnected);
+        setServerConnected(data.isConnected);
       } else if (type === 'INIT') {
+        setDataLoading(false);
+        setActionError('');
         if (data.status) {
+          setIsConnected(data.status.isConnected);
           setChannel(data.status.channel);
           setMultiplier(data.status.multiplier);
           setSimulationEnabled(data.status.simulationEnabled);
@@ -140,7 +150,8 @@ export function App() {
 
         setSelectedChatter((prev) => (prev?.username === data.username ? data : prev));
       } else if (type === 'NEW_CHATTER') {
-        setChatters((prev) => [data, ...prev]);
+        setChatters((prev) => [data, ...prev.filter(c => c.username !== data.username)]);
+        setSelectedChatter(prev => prev || data);
       } else if (type === 'CHAT_MESSAGE') {
         setEvents((prev) => [data, ...prev.slice(0, 80)]);
         audioSynth.playClick();
@@ -182,8 +193,11 @@ export function App() {
     try {
       await api.setTrackedChannel(newChannel);
       setChannel(newChannel);
+      setSelectedFurniture(null);
+      setActionError('');
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t change the channel. Check the tracker connection and try again.');
+      throw err;
     }
   };
 
@@ -192,7 +206,7 @@ export function App() {
       await api.setMultiplier(newMult);
       setMultiplier(newMult);
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t change watch speed. Check the tracker connection and try again.');
     }
   };
 
@@ -202,7 +216,7 @@ export function App() {
       await api.setSimulation(next);
       setSimulationEnabled(next);
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t toggle demo traffic. Check the tracker connection and try again.');
     }
   };
 
@@ -213,7 +227,7 @@ export function App() {
       setGigantism(next);
       audioSynth.playGrowth();
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t toggle gigantism. Check the tracker connection and try again.');
     }
   };
 
@@ -223,7 +237,7 @@ export function App() {
       await api.setLiveOnly(next);
       setLiveOnly(next);
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t change live-only tracking. Check the tracker connection and try again.');
     }
   };
 
@@ -233,22 +247,24 @@ export function App() {
       audioSynth.playGrowth();
       setSelectedChatter(updated);
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t add watch time. Check the tracker connection and try again.');
     }
   };
 
   const handleSendMessage = async (senderUser, text) => {
     try {
       await api.sendChatMessage(senderUser, senderUser, text);
+      return true;
     } catch (err) {
-      console.error(err);
+      setActionError('Couldn’t send the simulated message. Check the tracker connection and try again.');
+      return false;
     }
   };
 
   const handleResetData = async () => {
     if (window.confirm('Reset all tracked watch time to starting baseline?')) {
-      await api.resetAllData();
-      await loadInitialData();
+      try { await api.resetAllData(); await loadInitialData(); }
+      catch { setActionError('Couldn’t reset watch time. Check the tracker connection and try again.'); }
     }
   };
 
@@ -270,74 +286,43 @@ export function App() {
     );
   }
 
+  const selectFurniture = item => {
+    setSelectedFurniture(item);
+    if (item) setInspectorTab('objects');
+  };
+  const focusFurniture = () => { setMobilePanel('home'); setCameraAction({ type: 'focus', timestamp: Date.now() }); };
+  const resetCamera = () => setCameraAction({ type: 'reset', timestamp: Date.now() });
+
   return (
     <div className="app-root">
-      {/* Top Application Bar */}
-      <TopBar
-        channel={channel}
-        onChangeChannel={handleChangeChannel}
-        isConnected={isConnected}
-        multiplier={multiplier}
-        onChangeMultiplier={handleChangeMultiplier}
-        simulationEnabled={simulationEnabled}
-        onToggleSimulation={handleToggleSimulation}
-        gigantism={gigantism}
-        onToggleGigantism={handleToggleGigantism}
-        liveOnly={liveOnly}
-        onToggleLiveOnly={handleToggleLiveOnly}
-        streamInfo={streamInfo}
-        onResetData={handleResetData}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-        onToggleOBSOverlay={() => setIsOBSMode(true)}
-      />
-
-      {/* Main Workspace: Left Roster, Center 3D Viewport, Right Chat */}
-      <div className="workspace-body">
-        {/* Left Chatter Leaderboard & Watch Time Roster */}
-        <ChatterList
-          chatters={chatters}
-          selectedChatter={selectedChatter}
-          onSelectChatter={(c) => setSelectedChatter(c)}
-          onAddTime={handleAddTime}
-        />
-
-        {/* Center 3D Interactive Canvas & Floating HUDs */}
-        <main className="canvas-wrapper">
-          <ThreeCanvas
-            selectedChatter={selectedChatter}
-            viewMode={viewMode}
-            lightingMode={lightingMode}
-            cameraPreset={cameraPreset}
-            onSelectFurniture={(item) => setSelectedFurniture(item)}
-            lastMilestone={lastMilestone}
-          />
-
-          {/* Center-Bottom Telemetry HUD */}
-          <TelemetryHUD
-            chatter={selectedChatter}
-            selectedFurniture={selectedFurniture}
-            onAddTime={handleAddTime}
-            gigantism={gigantism}
-          />
-
-          {/* Bottom-Right Viewport & Lighting Controls */}
-          <ViewportControls
-            cameraPreset={cameraPreset}
-            onChangeCamera={(cam) => setCameraPreset(cam)}
-            viewMode={viewMode}
-            onChangeViewMode={(v) => setViewMode(v)}
-            lightingMode={lightingMode}
-            onChangeLightingMode={(l) => setLightingMode(l)}
-          />
+      <TopBar channel={channel} onChangeChannel={handleChangeChannel} isConnected={isConnected}
+        serverConnected={serverConnected} multiplier={multiplier} onChangeMultiplier={handleChangeMultiplier}
+        simulationEnabled={simulationEnabled} onToggleSimulation={handleToggleSimulation}
+        gigantism={gigantism} onToggleGigantism={handleToggleGigantism} liveOnly={liveOnly}
+        onToggleLiveOnly={handleToggleLiveOnly} streamInfo={streamInfo} onResetData={handleResetData}
+        isMuted={isMuted} onToggleMute={handleToggleMute} onToggleOBSOverlay={() => setIsOBSMode(true)} />
+      {actionError && <div className="app-notice" role="alert"><AlertCircle size={16} /><span>{actionError}</span><button onClick={() => { setActionError(''); loadInitialData(); }}><RotateCcw size={13} />Retry</button><button onClick={() => setActionError('')} aria-label="Dismiss error"><X size={15} /></button></div>}
+      <nav className="mobile-navigation" aria-label="Workspace panels">
+        {[[ 'community', 'Community', Users ], [ 'home', '3D home', Box ], [ 'activity', 'Activity & objects', MessageSquare ]].map(([id, label, Icon]) => <button key={id} className={mobilePanel === id ? 'active' : ''} onClick={() => setMobilePanel(id)} aria-pressed={mobilePanel === id}><Icon size={15} />{label}</button>)}
+      </nav>
+      <div className={`workspace-body ${focusMode ? 'focus-mode' : ''}`} data-panel={mobilePanel}>
+        <ChatterList chatters={chatters} selectedChatter={selectedChatter} loading={dataLoading}
+          onSelectChatter={chatter => { setSelectedChatter(chatter); setSelectedFurniture(null); setMobilePanel('home'); }} onAddTime={handleAddTime} />
+        <main className="canvas-wrapper" aria-label="3D home workspace">
+          <div className="scene-heading"><div><h1>{selectedChatter ? `${selectedChatter.displayName || selectedChatter.username}’s place` : 'Your community, built in 3D'}</h1><p>{selectedChatter?.tier?.description || 'Watch time becomes a home. Select a viewer to explore.'}</p></div><div className="scene-heading-actions">{selectedChatter && <span className="scene-tier">Tier {selectedChatter.tier?.id || 1}<span> / 5</span></span>}<button className="icon-action-btn focus-mode-button" onClick={() => setFocusMode(!focusMode)} aria-pressed={focusMode} aria-label={focusMode ? 'Show side panels' : 'Expand 3D workspace'} title={focusMode ? 'Show side panels' : 'Expand workspace'}>{focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></div></div>
+          <ViewportControls cameraPreset={cameraPreset} onChangeCamera={setCameraPreset} viewMode={viewMode} onChangeViewMode={setViewMode} lightingMode={lightingMode} onChangeLightingMode={setLightingMode} onResetCamera={resetCamera} onFocusFurniture={focusFurniture} hasSelection={Boolean(selectedFurniture)} />
+          <div className="scene-stage">
+            <ThreeCanvas selectedChatter={selectedChatter} viewMode={viewMode} lightingMode={lightingMode}
+              cameraPreset={cameraPreset} onSelectFurniture={selectFurniture} selectedFurnitureId={selectedFurniture?.id}
+              cameraAction={cameraAction} lastMilestone={lastMilestone} />
+            <div className="scene-guide"><MousePointer2 size={12} /><span>Drag to orbit<span className="guide-desktop"> · Scroll to zoom · Click an object to inspect</span></span></div>
+            <span className="scene-atmosphere"><span className={`atmosphere-dot ${lightingMode}`} />{lightingMode === 'sunset' ? 'Golden hour' : lightingMode === 'day' ? 'Daylight studio' : 'After hours'}</span>
+          </div>
+          <TelemetryHUD chatter={selectedChatter} onAddTime={handleAddTime} gigantism={gigantism} />
         </main>
-
-        {/* Right Live Twitch IRC Chat & Level-Up Feed */}
-        <TwitchChatFeed
-          events={events}
-          onSendMessage={handleSendMessage}
-          channel={channel}
-        />
+        <SceneInspector tab={inspectorTab} onChangeTab={setInspectorTab} chatter={selectedChatter}
+          selectedFurniture={selectedFurniture} onSelectFurniture={selectFurniture} onFocusFurniture={focusFurniture}
+          events={events} onSendMessage={handleSendMessage} channel={channel} simulationEnabled={simulationEnabled} />
       </div>
     </div>
   );

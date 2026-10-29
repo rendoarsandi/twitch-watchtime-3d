@@ -1,153 +1,25 @@
 import React from 'react';
-import { Home, Layers, Sparkles, Sliders, ArrowUpRight } from 'lucide-react';
+import { Clock3, ArrowUpRight, House, Plus, Sparkles } from 'lucide-react';
 import { formatWatchTime } from './ChatterList.jsx';
 
-export function TelemetryHUD({
-  chatter,
-  selectedFurniture,
-  onAddTime,
-  gigantism
-}) {
-  if (!chatter) return null;
+const STAGES = [ ['Pod', '0m'], ['Cottage', '15m'], ['Residence', '1h'], ['Villa', '5h'], ['Citadel', '20h'] ];
 
-  const currentTier = chatter.tier || { id: 1, name: 'Starter Pod', minMinutes: 0, maxMinutes: 15 };
-  const currentMinutes = chatter.watchSeconds / 60;
-
-  // Calculate progress percentage to next tier
-  let progressPct = 100;
-  let nextTierMinutes = 0;
-  if (currentTier.maxMinutes !== Infinity) {
-    const range = currentTier.maxMinutes - currentTier.minMinutes;
-    const elapsed = Math.max(0, currentMinutes - currentTier.minMinutes);
-    progressPct = Math.min(100, Math.round((elapsed / range) * 100));
-    nextTierMinutes = currentTier.maxMinutes;
-  }
-
-  const scales = chatter.furnitureScales || {
-    overall: 1.0,
-    couch: 1.0,
-    tv: 1.0,
-    battlestation: 1.0,
-    bed: 1.0,
-    fridge: 1.0,
-    bookshelf: 1.0,
-    lamp: 1.0,
-    plant: 1.0
-  };
-
-  const furnitureList = [
-    { id: 'couch', name: 'Couch', scale: scales.couch, icon: '🛋️' },
-    { id: 'tv', name: 'IMAX TV', scale: scales.tv, icon: '📺' },
-    { id: 'battlestation', name: 'Battlestation', scale: scales.battlestation, icon: '🖥️' },
-    { id: 'bed', name: 'Imperial Bed', scale: scales.bed, icon: '🛏️' },
-    { id: 'fridge', name: 'Fridge Monolith', scale: scales.fridge, icon: '🧊' },
-    { id: 'bookshelf', name: 'Trophy Shelf', scale: scales.bookshelf, icon: '🏆' },
-    { id: 'lamp', name: 'Stellar Lamp', scale: scales.lamp, icon: '💡' },
-    { id: 'plant', name: 'Mega Bonsai', scale: scales.plant, icon: '🪴' }
-  ];
-
-  return (
-    <div className="telemetry-hud">
-      {/* Active Chatter & Architectural Tier Card */}
-      <div className="hud-card chatter-hud-card">
-        <div className="hud-user-row">
-          <div
-            className="hud-avatar-dot"
-            style={{ backgroundColor: chatter.color || '#9146ff' }}
-          />
-          <div className="hud-user-info">
-            <span className="hud-username" style={{ color: chatter.color || '#fff' }}>
-              {chatter.displayName || chatter.username}
-            </span>
-            <span className="hud-watch-total">
-              ⏱ {formatWatchTime(chatter.watchSeconds)} watch time
-            </span>
-          </div>
-          <div className="hud-badge-tier">
-            Tier {currentTier.id} • House {(chatter.houseScale || currentTier.baseScale || 1.0).toFixed(2)}x
-          </div>
-        </div>
-
-        {/* Progress bar to next house tier */}
-        <div className="tier-progress-container">
-          <div className="tier-progress-labels">
-            <span className="tier-name-label">
-              <Home size={12} />
-              {currentTier.name}
-            </span>
-            <span className="tier-next-label">
-              {currentTier.maxMinutes === Infinity
-                ? 'MAX CITADEL'
-                : `${progressPct}% to Tier ${currentTier.id + 1} (${Math.round(nextTierMinutes - currentMinutes)}m left)`}
-            </span>
-          </div>
-          <div className="progress-bar-bg">
-            <div
-              className="progress-bar-fill"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Furniture Growth Matrix HUD */}
-      <div className="hud-card furniture-hud-card">
-        <div className="furniture-hud-header">
-          <div className="furniture-title-row">
-            <Sparkles size={14} className="accent-icon" />
-            <span className="hud-label">FURNITURE HYPER-SCALE</span>
-            {gigantism && <span className="gigantism-tag">MEGA BOOST</span>}
-          </div>
-          <span className="overall-multiplier">
-            Avg Scale: <strong>{scales.overall}x</strong>
-          </span>
-        </div>
-
-        {/* Grid of 8 furniture pieces with current scale */}
-        <div className="furniture-chips-grid">
-          {furnitureList.map((item) => {
-            const isSelected = selectedFurniture?.id === item.id;
-            return (
-              <div
-                key={item.id}
-                className={`furniture-chip ${isSelected ? 'selected' : ''}`}
-                title={`Click in 3D scene to inspect ${item.name}`}
-              >
-                <span className="chip-icon">{item.icon}</span>
-                <span className="chip-name">{item.name}</span>
-                <span className="chip-scale">{item.scale}x</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {selectedFurniture && (
-          <div className="inspector-box">
-            <span className="inspector-title">SELECTED IN 3D:</span>
-            <span className="inspector-name">{selectedFurniture.name} ({selectedFurniture.category})</span>
-            <span className="inspector-scale">Current Scale Factor: {selectedFurniture.currentScale?.toFixed(2)}x</span>
-          </div>
-        )}
-      </div>
-
-      {/* Manual Watch Time Boost Buttons */}
-      <div className="hud-card time-boost-card">
-        <span className="hud-label">SIMULATE GROWTH</span>
-        <div className="boost-buttons-grid">
-          <button onClick={() => onAddTime(chatter.username, 300)} className="btn-boost">
-            +5 min
-          </button>
-          <button onClick={() => onAddTime(chatter.username, 1800)} className="btn-boost">
-            +30 min
-          </button>
-          <button onClick={() => onAddTime(chatter.username, 7200)} className="btn-boost highlight-boost">
-            +2 Hours
-          </button>
-          <button onClick={() => onAddTime(chatter.username, 72000)} className="btn-boost titan-boost">
-            +20 Hours 👑
-          </button>
-        </div>
+export function TelemetryHUD({ chatter, onAddTime, gigantism }) {
+  if (!chatter) return <div className="telemetry-empty"><House size={18} /><p>Select a viewer to see their watch time and home progression.</p></div>;
+  const tier = chatter.tier || { id: 1, name: 'Starter Pod', minMinutes: 0, maxMinutes: 15 };
+  const minutes = (chatter.watchSeconds || 0) / 60;
+  const maxTier = !Number.isFinite(tier.maxMinutes) || tier.id === 5;
+  const progress = maxTier ? 100 : Math.max(0, Math.min(100, (minutes - tier.minMinutes) / (tier.maxMinutes - tier.minMinutes) * 100));
+  const remaining = maxTier ? 0 : Math.max(0, Math.ceil(tier.maxMinutes * 60 - chatter.watchSeconds));
+  return <section className="telemetry-hud" aria-label="Home progression">
+    <div className="home-progress-row">
+      <div className="watchtime-total"><span><Clock3 size={12} />Total watch time</span><strong>{formatWatchTime(chatter.watchSeconds)}</strong></div>
+      <div className="tier-progress-container">
+        <div className="tier-progress-labels"><strong>{tier.name}</strong><span>{maxTier ? 'Highest tier unlocked' : <>{formatWatchTime(remaining)} to {STAGES[tier.id]?.[0]}<ArrowUpRight size={12} /></>}</span></div>
+        <div className="progress-bar-bg" role="progressbar" aria-label="Progress to next home tier" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}><div className="progress-bar-fill" style={{ transform: `scaleX(${progress / 100})` }} /></div>
+        <div className="tier-milestones">{STAGES.map(([label, time], i) => <span key={label} className={`${i + 1 <= tier.id ? 'unlocked' : ''} ${i + 1 === tier.id ? 'current' : ''}`} title={`${label} unlocks at ${time}`}><i />{label}</span>)}</div>
       </div>
     </div>
-  );
+    <div className="growth-actions"><span className="growth-label"><Sparkles size={13} />{gigantism ? 'Gigantism enabled' : 'Watch it grow'}</span><div className="boost-buttons">{[[300, '5 min'], [1800, '30 min'], [7200, '2 hours'], [72000, '20 hours']].map(([seconds, label]) => <button key={seconds} onClick={() => onAddTime(chatter.username, seconds)} className={`btn-boost ${seconds === 72000 ? 'titan-boost' : ''}`}><Plus size={12} />{label}</button>)}</div><span className="house-scale">{(chatter.houseScale || 1).toFixed(2)}× house</span></div>
+  </section>;
 }

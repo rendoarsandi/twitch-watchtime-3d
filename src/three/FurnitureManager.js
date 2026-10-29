@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+
+const softBox = (w, h, d) => new RoundedBoxGeometry(w, h, d, 2, Math.min(0.055, w * 0.16, h * 0.16, d * 0.16));
 
 export class FurnitureManager {
   constructor(scene) {
@@ -7,6 +10,7 @@ export class FurnitureManager {
     this.group.name = 'furniture_container';
     this.scene.add(this.group);
 
+    this.interactiveObjects = [];
     this.items = new Map(); // id -> { group, mesh, baseScale, targetScale, currentScale, basePos, config }
     this.materials = this.createMaterials();
     this.screenTexture = this.createScreenTexture();
@@ -29,10 +33,10 @@ export class FurnitureManager {
       pillowGold: new THREE.MeshStandardMaterial({ color: 0xffb800, roughness: 0.6, metalness: 0.2 }),
       
       // Metal & Chrome
-      metalBlack: new THREE.MeshStandardMaterial({ color: 0x1f2421, roughness: 0.35, metalness: 0.85 }),
-      metalChrome: new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.15, metalness: 0.95 }),
+      metalBlack: new THREE.MeshStandardMaterial({ color: 0x1f2421, roughness: 0.35, metalness: 0.65 }),
+      metalChrome: new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.15, metalness: 0.72 }),
       goldTrophy: new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.2, metalness: 0.9, emissive: 0x332200 }),
-      amethystTrophy: new THREE.MeshStandardMaterial({ color: 0xbf55ec, roughness: 0.1, metalness: 0.85, emissive: 0x3d0c5a }),
+      amethystTrophy: new THREE.MeshStandardMaterial({ color: 0xbf55ec, roughness: 0.1, metalness: 0.65, emissive: 0x3d0c5a }),
       
       // Screens & Tech
       screenBezel: new THREE.MeshStandardMaterial({ color: 0x0f0f14, roughness: 0.4, metalness: 0.8 }),
@@ -89,6 +93,7 @@ export class FurnitureManager {
     ctx.fillText('● 1080p60 • ARCHITECT STAGE', 145, 240);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
   }
 
@@ -121,11 +126,22 @@ export class FurnitureManager {
   registerItem(id, name, group, basePos, category) {
     group.position.set(basePos.x, basePos.y, basePos.z);
     this.group.add(group);
+    group.traverse(child => {
+      if (child.isMesh) {
+        child.userData.furnitureId = id;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        this.interactiveObjects.push(child);
+      }
+    });
+    const bounds = new THREE.Box3().setFromObject(group);
+    const dimensions = bounds.getSize(new THREE.Vector3());
 
     this.items.set(id, {
       id,
       name,
       category,
+      dimensions,
       group,
       basePos: { ...basePos },
       baseScale: 1.0,
@@ -141,7 +157,7 @@ export class FurnitureManager {
     couch.name = 'furniture_couch';
 
     // Main base frame
-    const baseGeom = new THREE.BoxGeometry(2.8, 0.35, 1.2);
+    const baseGeom = softBox(2.8, 0.35, 1.2);
     const baseMesh = new THREE.Mesh(baseGeom, this.materials.fabricDark);
     baseMesh.position.y = 0.25;
     baseMesh.castShadow = true;
@@ -149,7 +165,7 @@ export class FurnitureManager {
     couch.add(baseMesh);
 
     // Seat cushions (plush purple)
-    const seatGeom = new THREE.BoxGeometry(1.25, 0.32, 1.05);
+    const seatGeom = softBox(1.25, 0.32, 1.05);
     const seatLeft = new THREE.Mesh(seatGeom, this.materials.fabricPurple);
     seatLeft.position.set(-0.65, 0.45, 0.05);
     seatLeft.castShadow = true;
@@ -161,7 +177,7 @@ export class FurnitureManager {
     couch.add(seatRight);
 
     // Backrest
-    const backGeom = new THREE.BoxGeometry(2.8, 0.85, 0.35);
+    const backGeom = softBox(2.8, 0.85, 0.35);
     const backMesh = new THREE.Mesh(backGeom, this.materials.fabricPurple);
     backMesh.position.set(0, 0.85, -0.42);
     backMesh.rotation.x = 0.05;
@@ -169,7 +185,7 @@ export class FurnitureManager {
     couch.add(backMesh);
 
     // Left armrest
-    const armGeom = new THREE.BoxGeometry(0.35, 0.65, 1.2);
+    const armGeom = softBox(0.35, 0.65, 1.2);
     const armLeft = new THREE.Mesh(armGeom, this.materials.fabricDark);
     armLeft.position.set(-1.42, 0.55, 0);
     armLeft.castShadow = true;
@@ -182,7 +198,7 @@ export class FurnitureManager {
     couch.add(armRight);
 
     // Throw pillows
-    const pillowGeom = new THREE.BoxGeometry(0.38, 0.38, 0.15);
+    const pillowGeom = softBox(0.38, 0.38, 0.15);
     const pillowL = new THREE.Mesh(pillowGeom, this.materials.pillowGold);
     pillowL.position.set(-1.1, 0.65, -0.2);
     pillowL.rotation.y = 0.3;
@@ -210,7 +226,7 @@ export class FurnitureManager {
     }
 
     // Coffee table in front of couch
-    const tableTopGeom = new THREE.BoxGeometry(1.6, 0.08, 0.8);
+    const tableTopGeom = softBox(1.6, 0.08, 0.8);
     const tableTop = new THREE.Mesh(tableTopGeom, this.materials.walnut);
     tableTop.position.set(0, 0.42, 1.25);
     tableTop.castShadow = true;
@@ -237,14 +253,14 @@ export class FurnitureManager {
     battle.name = 'furniture_battlestation';
 
     // Large corner desk surface
-    const deskTopGeom = new THREE.BoxGeometry(2.4, 0.09, 1.1);
+    const deskTopGeom = softBox(2.4, 0.09, 1.1);
     const deskTop = new THREE.Mesh(deskTopGeom, this.materials.darkWood);
     deskTop.position.set(0, 0.85, 0);
     deskTop.castShadow = true;
     battle.add(deskTop);
 
     // Sturdy metal legs
-    const legGeom = new THREE.BoxGeometry(0.08, 0.85, 0.9);
+    const legGeom = softBox(0.08, 0.85, 0.9);
     const legL = new THREE.Mesh(legGeom, this.materials.metalBlack);
     legL.position.set(-1.1, 0.425, 0);
     battle.add(legL);
@@ -256,7 +272,7 @@ export class FurnitureManager {
     // Dual/Triple curved screens
     // Center Monitor
     const screenMat = new THREE.MeshBasicMaterial({ map: this.screenTexture });
-    const screenFrameGeom = new THREE.BoxGeometry(1.0, 0.58, 0.04);
+    const screenFrameGeom = softBox(1.0, 0.58, 0.04);
     const frameCenter = new THREE.Mesh(screenFrameGeom, this.materials.screenBezel);
     frameCenter.position.set(0, 1.35, -0.25);
     battle.add(frameCenter);
@@ -294,23 +310,23 @@ export class FurnitureManager {
     battle.add(stand);
 
     // RGB Gaming PC Tower with tempered glass
-    const pcCaseGeom = new THREE.BoxGeometry(0.35, 0.65, 0.6);
+    const pcCaseGeom = softBox(0.35, 0.65, 0.6);
     const pcCase = new THREE.Mesh(pcCaseGeom, this.materials.metalBlack);
     pcCase.position.set(1.35, 1.18, -0.1);
     battle.add(pcCase);
 
-    const rgbGlowGeom = new THREE.BoxGeometry(0.02, 0.5, 0.45);
+    const rgbGlowGeom = softBox(0.02, 0.5, 0.45);
     const rgbGlow = new THREE.Mesh(rgbGlowGeom, this.materials.rgbGlow);
     rgbGlow.position.set(1.17, 1.18, -0.1);
     battle.add(rgbGlow);
 
     // Mechanical Keyboard with RGB
-    const kbGeom = new THREE.BoxGeometry(0.65, 0.03, 0.22);
+    const kbGeom = softBox(0.65, 0.03, 0.22);
     const kb = new THREE.Mesh(kbGeom, this.materials.metalBlack);
     kb.position.set(0, 0.91, 0.15);
     battle.add(kb);
 
-    const kbRgb = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.01, 0.2), this.materials.ledGlow);
+    const kbRgb = new THREE.Mesh(softBox(0.62, 0.01, 0.2), this.materials.ledGlow);
     kbRgb.position.set(0, 0.925, 0.15);
     battle.add(kbRgb);
 
@@ -318,11 +334,11 @@ export class FurnitureManager {
     const chair = new THREE.Group();
     chair.position.set(0, 0, 0.7);
 
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.12, 0.6), this.materials.fabricDark);
+    const seat = new THREE.Mesh(softBox(0.65, 0.12, 0.6), this.materials.fabricDark);
     seat.position.y = 0.55;
     chair.add(seat);
 
-    const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.1), this.materials.fabricPurple);
+    const seatBack = new THREE.Mesh(softBox(0.6, 0.85, 0.1), this.materials.fabricPurple);
     seatBack.position.set(0, 1.0, 0.25);
     seatBack.rotation.x = -0.08;
     chair.add(seatBack);
@@ -341,20 +357,20 @@ export class FurnitureManager {
     tv.name = 'furniture_tv';
 
     // TV Media Console Stand
-    const standGeom = new THREE.BoxGeometry(3.2, 0.5, 0.7);
+    const standGeom = softBox(3.2, 0.5, 0.7);
     const stand = new THREE.Mesh(standGeom, this.materials.walnut);
     stand.position.set(0, 0.25, 0);
     stand.castShadow = true;
     tv.add(stand);
 
     // Soundbar
-    const soundbarGeom = new THREE.BoxGeometry(1.8, 0.1, 0.15);
+    const soundbarGeom = softBox(1.8, 0.1, 0.15);
     const soundbar = new THREE.Mesh(soundbarGeom, this.materials.metalBlack);
     soundbar.position.set(0, 0.55, 0.15);
     tv.add(soundbar);
 
     // Gargantuan Flat TV screen
-    const screenFrameGeom = new THREE.BoxGeometry(2.8, 1.6, 0.08);
+    const screenFrameGeom = softBox(2.8, 1.6, 0.08);
     const frame = new THREE.Mesh(screenFrameGeom, this.materials.screenBezel);
     frame.position.set(0, 1.5, 0);
     frame.castShadow = true;
@@ -379,31 +395,31 @@ export class FurnitureManager {
     bed.name = 'furniture_bed';
 
     // Solid wooden bed platform
-    const platformGeom = new THREE.BoxGeometry(2.4, 0.35, 2.6);
+    const platformGeom = softBox(2.4, 0.35, 2.6);
     const platform = new THREE.Mesh(platformGeom, this.materials.darkWood);
     platform.position.set(0, 0.2, 0);
     bed.add(platform);
 
     // Thick luxury mattress
-    const mattressGeom = new THREE.BoxGeometry(2.2, 0.35, 2.4);
+    const mattressGeom = softBox(2.2, 0.35, 2.4);
     const mattress = new THREE.Mesh(mattressGeom, this.materials.ceramicWhite);
     mattress.position.set(0, 0.5, 0);
     bed.add(mattress);
 
     // Duvet / Blanket (Twitch purple folded)
-    const blanketGeom = new THREE.BoxGeometry(2.22, 0.15, 1.7);
+    const blanketGeom = softBox(2.22, 0.15, 1.7);
     const blanket = new THREE.Mesh(blanketGeom, this.materials.fabricPurple);
     blanket.position.set(0, 0.65, 0.35);
     bed.add(blanket);
 
     // Headboard
-    const headboardGeom = new THREE.BoxGeometry(2.5, 1.4, 0.2);
+    const headboardGeom = softBox(2.5, 1.4, 0.2);
     const headboard = new THREE.Mesh(headboardGeom, this.materials.fabricDark);
     headboard.position.set(0, 0.9, -1.25);
     bed.add(headboard);
 
     // Plump pillows
-    const pillowGeom = new THREE.BoxGeometry(0.75, 0.2, 0.5);
+    const pillowGeom = softBox(0.75, 0.2, 0.5);
     const p1 = new THREE.Mesh(pillowGeom, this.materials.ceramicWhite);
     p1.position.set(-0.55, 0.75, -0.85);
     p1.rotation.x = 0.2;
@@ -429,7 +445,7 @@ export class FurnitureManager {
     }
 
     // Overhead canopy frame
-    const canopyBeamX = new THREE.BoxGeometry(2.4, 0.05, 0.05);
+    const canopyBeamX = softBox(2.4, 0.05, 0.05);
     const topFront = new THREE.Mesh(canopyBeamX, this.materials.metalBlack);
     topFront.position.set(0, 2.5, 1.25);
     bed.add(topFront);
@@ -446,13 +462,13 @@ export class FurnitureManager {
     fridge.name = 'furniture_fridge';
 
     // Main Fridge Body (Brushed stainless steel)
-    const bodyGeom = new THREE.BoxGeometry(1.3, 2.3, 1.1);
+    const bodyGeom = softBox(1.3, 2.3, 1.1);
     const body = new THREE.Mesh(bodyGeom, this.materials.metalChrome);
     body.position.set(0, 1.15, 0);
     fridge.add(body);
 
     // Double French Doors division seam
-    const seamGeom = new THREE.BoxGeometry(0.02, 1.4, 0.02);
+    const seamGeom = softBox(0.02, 1.4, 0.02);
     const seam = new THREE.Mesh(seamGeom, this.materials.metalBlack);
     seam.position.set(0, 1.5, 0.56);
     fridge.add(seam);
@@ -468,7 +484,7 @@ export class FurnitureManager {
     fridge.add(handleR);
 
     // Water/Ice Dispenser Panel with cyan display
-    const dispenserGeom = new THREE.BoxGeometry(0.3, 0.45, 0.04);
+    const dispenserGeom = softBox(0.3, 0.45, 0.04);
     const dispenser = new THREE.Mesh(dispenserGeom, this.materials.screenBezel);
     dispenser.position.set(-0.35, 1.6, 0.55);
     fridge.add(dispenser);
@@ -485,10 +501,20 @@ export class FurnitureManager {
     shelf.name = 'furniture_bookshelf';
 
     // Outer frame
-    const outerGeom = new THREE.BoxGeometry(1.6, 2.6, 0.5);
+    const outerGeom = softBox(1.6, 2.6, 0.5);
     const frame = new THREE.Mesh(outerGeom, this.materials.darkWood);
     frame.position.set(0, 1.3, 0);
+    frame.scale.set(1, 1, 0.12);
+    frame.position.z = -0.22;
     shelf.add(frame);
+    for (const x of [-0.75, 0.75]) {
+      const side = new THREE.Mesh(softBox(0.1, 2.6, 0.5), this.materials.darkWood);
+      side.position.set(x, 1.3, 0); shelf.add(side);
+    }
+    for (let y = 0; y <= 2.6; y += 0.65) {
+      const board = new THREE.Mesh(softBox(1.6, 0.06, 0.5), this.materials.walnut);
+      board.position.set(0, y, 0); shelf.add(board);
+    }
 
     // Shelves cutout feel / inner cubbies
     const shelfCount = 4;
@@ -502,7 +528,7 @@ export class FurnitureManager {
           color: bookColors[(i + b) % bookColors.length],
           roughness: 0.5
         });
-        const book = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.3), bookMat);
+        const book = new THREE.Mesh(softBox(0.06, 0.32, 0.3), bookMat);
         book.position.set(-0.5 + b * 0.08, y + 0.16, 0.02);
         shelf.add(book);
       }
@@ -517,7 +543,7 @@ export class FurnitureManager {
     trophyStem.position.set(0.35, 1.8, 0.05);
     shelf.add(trophyStem);
 
-    const trophyGlitch = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.06), this.materials.goldTrophy);
+    const trophyGlitch = new THREE.Mesh(softBox(0.2, 0.2, 0.06), this.materials.goldTrophy);
     trophyGlitch.position.set(0.35, 2.0, 0.05);
     shelf.add(trophyGlitch);
 
@@ -569,7 +595,7 @@ export class FurnitureManager {
     // Point Light source originating from lamp
     const light = new THREE.PointLight(0xa970ff, 2.0, 10, 1.5);
     light.position.y = 2.9;
-    light.castShadow = true;
+    light.castShadow = false;
     lamp.add(light);
 
     this.registerItem('lamp', 'Stellar Gyro-Chandelier', lamp, { x: 0, y: 0, z: 0 }, 'Ceiling');
@@ -620,6 +646,7 @@ export class FurnitureManager {
 
   // Update target scales according to calculated furniture factors
   setScales(scales = {}, bounce = false) {
+    scales ||= {};
     for (const [id, item] of this.items) {
       if (scales[id] !== undefined) {
         item.targetScale = scales[id];
@@ -633,64 +660,45 @@ export class FurnitureManager {
     }
   }
 
-  // Raycastable objects list for mouse interaction
-  getInteractiveObjects() {
-    const list = [];
-    for (const item of this.items.values()) {
-      item.group.traverse((child) => {
-        if (child.isMesh) {
-          child.userData.furnitureId = item.id;
-          list.push(child);
-        }
-      });
-    }
-    return list;
-  }
+  getInteractiveObjects() { return this.interactiveObjects; }
 
-  getItemById(id) {
-    return this.items.get(id) || null;
-  }
+  getItemById(id) { return this.items.get(id) || null; }
 
-  update(delta, houseScale = 1.0) {
-    const layoutMult = Math.max(1.0, houseScale * 0.92);
-
-    // Smooth lerping and spring bounce
+  update(delta, houseScale = 1, layout = { width: 10, depth: 8.4, floor: 0.42 }, reducedMotion = false) {
+    const { width, depth, floor } = layout;
+    // Room-sized zones preserve the growth fantasy without furniture intersecting.
+    // Raw watch-time multipliers remain available in the inspector.
+    const slots = {
+      couch: [0, 0.16, 0.29, 0.35, Math.PI],
+      tv: [0, -0.39, 0.27, 0.15, 0],
+      bed: [-0.3, -0.02, 0.25, 0.35, 0],
+      battlestation: [0.31, -0.24, 0.27, 0.34, 0],
+      fridge: [-0.37, 0.32, 0.16, 0.2, 0],
+      bookshelf: [-0.35, -0.39, 0.17, 0.12, 0],
+      plant: [0.37, 0.32, 0.15, 0.2, 0],
+      lamp: [0, 0.02, 0.18, 0.18, 0]
+    };
     for (const [id, item] of this.items) {
-      // Spring bounce decay
-      if (Math.abs(item.bounceVel) > 0.001 || Math.abs(item.bounceOffset) > 0.001) {
-        const springForce = -item.bounceOffset * 45;
-        const dampingForce = -item.bounceVel * 8;
-        item.bounceVel += (springForce + dampingForce) * delta;
+      if (!reducedMotion && (Math.abs(item.bounceVel) > 0.001 || Math.abs(item.bounceOffset) > 0.001)) {
+        item.bounceVel += (-item.bounceOffset * 45 - item.bounceVel * 8) * delta;
         item.bounceOffset += item.bounceVel * delta;
-      } else {
-        item.bounceOffset = 0;
-        item.bounceVel = 0;
-      }
-
-      // Smooth scale interpolation towards targetScale
-      item.currentScale += (item.targetScale - item.currentScale) * Math.min(1.0, delta * 6.0);
-
-      const effectiveScale = Math.max(0.2, item.currentScale + item.bounceOffset);
-      item.group.scale.set(effectiveScale, effectiveScale, effectiveScale);
-
-      // Expand furniture layout outwards with house size
-      if (id !== 'lamp') {
-        item.group.position.x = item.basePos.x * layoutMult;
-        item.group.position.z = item.basePos.z * layoutMult;
-        item.group.position.y = item.basePos.y;
-      } else {
-        // Ceiling chandelier hangs from scaled ceiling
-        item.group.position.y = (houseScale - 1.0) * 1.5;
-      }
+      } else { item.bounceOffset = 0; item.bounceVel = 0; }
+      item.currentScale = reducedMotion ? item.targetScale : THREE.MathUtils.damp(item.currentScale, item.targetScale, 6, delta);
+      const [x, z, roomW, roomD, rotation] = slots[id];
+      const maxScale = Math.min(width * roomW / item.dimensions.x, depth * roomD / item.dimensions.z, (id === 'lamp' ? 3.5 : 3) / item.dimensions.y);
+      const growth = 0.7 * Math.pow(Math.max(1, item.currentScale), 0.35);
+      const visualScale = Math.min(maxScale, growth) * houseScale;
+      item.group.scale.setScalar(visualScale * (1 + item.bounceOffset));
+      item.group.rotation.y = rotation;
+      item.group.position.set(x * width * houseScale, (floor + 0.06) * houseScale, z * depth * houseScale);
+      if (id === 'lamp') item.group.position.y += Math.max(0, 3.9 * houseScale - item.dimensions.y * visualScale);
     }
-
-    // Animate chandelier orbital gyro rings
-    const lamp = this.items.get('lamp');
-    if (lamp) {
+    if (!reducedMotion) {
+      const lamp = this.items.get('lamp');
       const ring1 = lamp.group.getObjectByName('lamp_ring_1');
       const ring2 = lamp.group.getObjectByName('lamp_ring_2');
-      if (ring1) ring1.rotation.z += delta * 0.8;
-      if (ring2) ring2.rotation.y += delta * 1.1;
+      if (ring1) ring1.rotation.z += delta * 0.4;
+      if (ring2) ring2.rotation.y += delta * 0.55;
     }
   }
 }

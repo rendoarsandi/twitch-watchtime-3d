@@ -1,109 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, Trophy, ArrowRight } from 'lucide-react';
+import { MessageSquare, Send, Trophy, Radio } from 'lucide-react';
 
-export function TwitchChatFeed({
-  events,
-  onSendMessage,
-  channel
-}) {
-  const [inputText, setInputText] = useState('');
-  const [customUser, setCustomUser] = useState('stream_viewer');
-  const chatBottomRef = useRef(null);
-
-  // Auto-scroll on new messages
+export function TwitchChatFeed({ events, onSendMessage, channel, simulationEnabled }) {
+  const [text, setText] = useState('');
+  const [username, setUsername] = useState('stream_viewer');
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+  const nearBottom = useRef(true);
   useEffect(() => {
-    if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    const container = scrollRef.current;
+    if (container && nearBottom.current) container.scrollTop = container.scrollHeight;
   }, [events]);
-
-  const handleSubmit = (e) => {
+  const submit = async e => {
     e.preventDefault();
-    if (inputText.trim()) {
-      onSendMessage(customUser.trim() || 'stream_viewer', inputText.trim());
-      setInputText('');
-    }
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try { if (await onSendMessage(username.trim() || 'stream_viewer', text.trim())) setText(''); }
+    finally { setSending(false); }
   };
-
-  return (
-    <aside className="sidebar-chat">
-      <div className="chat-header">
-        <div className="chat-title">
-          <MessageSquare size={16} />
-          <span>TWITCH CHAT #{channel}</span>
-        </div>
-        <span className="chat-live-badge">LIVE FEED</span>
-      </div>
-
-      <div className="chat-feed-content">
-        {events.length === 0 ? (
-          <div className="empty-chat">
-            <span>Listening for chat messages on #{channel}...</span>
-          </div>
-        ) : (
-          events.slice().reverse().map((ev, i) => {
-            if (ev.type === 'tier_up') {
-              return (
-                <div key={ev.id || i} className="event-banner tier-up-banner">
-                  <Trophy size={14} className="trophy-icon" />
-                  <div className="tier-up-text">
-                    <strong style={{ color: '#ffd700' }}>{ev.displayName || ev.username}</strong>
-                    <span> unlocked </span>
-                    <span className="tier-name-highlight">{ev.newTier?.name}</span>!
-                  </div>
-                </div>
-              );
-            }
-
-            if (ev.type === 'system') {
-              return (
-                <div key={ev.id || i} className="event-banner system-banner">
-                  <span>{ev.message}</span>
-                </div>
-              );
-            }
-
-            return (
-              <div key={ev.id || i} className="chat-message-row">
-                <span
-                  className="chat-author"
-                  style={{ color: ev.color || '#9146ff' }}
-                >
-                  {ev.displayName || ev.username}:
-                </span>
-                <span className="chat-body">{ev.text}</span>
-              </div>
-            );
-          })
-        )}
-        <div ref={chatBottomRef} />
-      </div>
-
-      {/* Test Chat Sender Form */}
-      <form onSubmit={handleSubmit} className="chat-input-form">
-        <div className="sender-config-row">
-          <span className="sender-label">Simulate as:</span>
-          <input
-            type="text"
-            value={customUser}
-            onChange={(e) => setCustomUser(e.target.value)}
-            className="sender-name-input"
-            placeholder="Username"
-          />
-        </div>
-        <div className="sender-message-row">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Type chat message to test watchtime..."
-            className="message-input"
-          />
-          <button type="submit" className="btn-send">
-            <Send size={14} />
-          </button>
-        </div>
-      </form>
-    </aside>
-  );
+  return <section className="chat-panel">
+    <div className="chat-header"><div><h2>Channel activity</h2><span className="chat-channel">#{channel}</span></div><span className="chat-mode"><Radio size={11} />{simulationEnabled ? 'Demo on' : 'Chat feed'}</span></div>
+    <div ref={scrollRef} className="chat-feed-content" role="log" aria-label="Channel activity" aria-live="off" onScroll={e => { const el = e.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }}>
+      {events.length === 0 ? <div className="empty-state"><MessageSquare size={27} strokeWidth={1.4} /><strong>Room to grow</strong><p>Chat messages and home upgrades will appear here.</p><span className="empty-channel">Listening to #{channel}</span></div> : [...events].reverse().map((event, i) => {
+        if (event.type === 'tier_up') return <div key={event.id || i} className="event-banner tier-up-banner"><Trophy size={17} /><div><strong>{event.displayName || event.username}</strong><p>Unlocked {event.newTier?.name || 'a new home'}.</p></div></div>;
+        if (event.type === 'system') return <div key={event.id || i} className="event-banner system-banner">{event.message}</div>;
+        if (event.type === 'sub' || event.type === 'raid' || event.type === 'resub' || event.type === 'subscription') return <div key={event.id || i} className="event-banner tier-up-banner"><Trophy size={16} /><div><strong>{event.displayName || event.username}</strong><p>{event.message || event.text || 'A community milestone!'}</p></div></div>;
+        return <div key={event.id || i} className="chat-message-row"><span className="chat-author" style={{ '--viewer-color': event.color || '#b7a2ee' }}>{event.displayName || event.username}</span><span className="chat-body">{event.text || event.message}</span></div>;
+      })}
+    </div>
+    <form onSubmit={submit} className="chat-input-form"><label className="sender-config-row"><span>Simulate as</span><input aria-label="Simulated viewer username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" maxLength={25} /></label><div className="sender-message-row"><input aria-label="Simulated chat message" value={text} onChange={e => setText(e.target.value)} placeholder="Try a chat message…" maxLength={500} /><button type="submit" disabled={!text.trim() || sending} aria-label="Send simulated message" title="Send simulated message"><Send size={16} /></button></div><p>Test messages stay in this tracker.</p></form>
+  </section>;
 }

@@ -1,492 +1,298 @@
 import * as THREE from 'three';
+import { surfaceTexture } from './materials.js';
+
+export const HOUSE_LAYOUTS = {
+  1: { width: 10, depth: 8.4, height: 4.6, floor: 0.42 },
+  2: { width: 11.5, depth: 9.6, height: 5.5, floor: 0.52 },
+  3: { width: 13, depth: 10.6, height: 7.8, floor: 0.52 },
+  4: { width: 15, depth: 12, height: 8.5, floor: 0.52 },
+  5: { width: 18, depth: 15, height: 15, floor: 0.85 }
+};
 
 export class HouseBuilder {
   constructor(scene) {
-    this.scene = scene;
     this.group = new THREE.Group();
     this.group.name = 'house_container';
-    this.scene.add(this.group);
-
+    scene.add(this.group);
     this.currentTier = 1;
-    this.targetScale = 1.0;
-    this.currentScale = 1.0;
-    this.viewMode = 'cutaway'; // 'cutaway' | 'exterior' | 'xray'
-
+    this.currentScale = this.targetScale = 1;
+    this.viewMode = 'cutaway';
+    this.elapsed = 0;
     this.materials = this.createMaterials();
-    this.tierGroups = new Map(); // tierId -> THREE.Group
-
-    this.initTiers();
-    this.setTier(1, 1.0);
+    this.tierGroups = new Map();
+    this.buildTier(1);
   }
 
   createMaterials() {
+    const wood = surfaceTexture('wood', '#bc9169', '#876347');
+    wood.repeat.set(2, 2);
+    const siding = surfaceTexture('wood', '#957053', '#6d513e');
+    siding.repeat.set(2, 1);
+    const stone = surfaceTexture('tile', '#c9c7b9', '#acaa9e');
+    stone.repeat.set(2, 2);
+    const shingles = surfaceTexture('roof', '#394b51', '#27373c');
+    shingles.repeat.set(3, 2);
     return {
-      // Wood & Earth
-      woodPlanks: new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8, metalness: 0.05 }),
-      darkWood: new THREE.MeshStandardMaterial({ color: 0x4a2e1b, roughness: 0.7, metalness: 0.1 }),
-      cedarSiding: new THREE.MeshStandardMaterial({ color: 0xab6f48, roughness: 0.6, metalness: 0.05 }),
-      brickFoundation: new THREE.MeshStandardMaterial({ color: 0x7a3a2a, roughness: 0.85, metalness: 0.0 }),
-      concreteSlab: new THREE.MeshStandardMaterial({ color: 0xdcdde1, roughness: 0.5, metalness: 0.1 }),
-      
-      // Modern & Villa
-      slateGraphite: new THREE.MeshStandardMaterial({ color: 0x2f3640, roughness: 0.4, metalness: 0.3 }),
-      crispWhite: new THREE.MeshStandardMaterial({ color: 0xf5f6fa, roughness: 0.25, metalness: 0.05 }),
-      terraceDeck: new THREE.MeshStandardMaterial({ color: 0x9c7a5b, roughness: 0.6, metalness: 0.05 }),
-      poolWater: new THREE.MeshStandardMaterial({
-        color: 0x00d2d3,
-        roughness: 0.1,
-        metalness: 0.8,
-        transparent: true,
-        opacity: 0.75
-      }),
-
-      // Marble & Gold (Titan Citadel)
-      marbleWhite: new THREE.MeshStandardMaterial({ color: 0xf8f9fa, roughness: 0.15, metalness: 0.1 }),
-      goldTrim: new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.2, metalness: 0.9, emissive: 0x332200 }),
-      neonAmethyst: new THREE.MeshStandardMaterial({ color: 0x9146ff, emissive: 0x9146ff, emissiveIntensity: 2.5, roughness: 0.1 }),
-      skyBeacon: new THREE.MeshBasicMaterial({
-        color: 0xa970ff,
-        transparent: true,
-        opacity: 0.65,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide
-      }),
-
-      // Roofing
-      roofTin: new THREE.MeshStandardMaterial({ color: 0x718093, roughness: 0.4, metalness: 0.6 }),
-      roofShingles: new THREE.MeshStandardMaterial({ color: 0x353b48, roughness: 0.75, metalness: 0.2 }),
-      solarPanels: new THREE.MeshStandardMaterial({ color: 0x192a56, roughness: 0.2, metalness: 0.8 }),
-
-      // Glass & Cutaway
-      glassClear: new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.35,
-        roughness: 0.05,
-        metalness: 0.1,
-        transmission: 0.8
-      }),
-      xrayMat: new THREE.MeshStandardMaterial({
-        color: 0x718093,
-        transparent: true,
-        opacity: 0.25,
-        roughness: 0.3,
-        metalness: 0.5,
-        wireframe: false
-      })
+      wood: new THREE.MeshStandardMaterial({ map: wood, roughness: 0.78 }),
+      cedar: new THREE.MeshStandardMaterial({ map: siding, roughness: 0.85 }),
+      stone: new THREE.MeshStandardMaterial({ map: stone, roughness: 0.85 }),
+      cream: new THREE.MeshStandardMaterial({ color: 0xe7e2d3, roughness: 0.8 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x293a3c, roughness: 0.6 }),
+      trim: new THREE.MeshStandardMaterial({ color: 0x53615b, metalness: 0.35, roughness: 0.5 }),
+      roof: new THREE.MeshStandardMaterial({ map: shingles, roughness: 0.65 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x9dc6c3, metalness: 0.3, roughness: 0.15, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }),
+      warm: new THREE.MeshStandardMaterial({ color: 0xffd7a0, emissive: 0xffb65e, emissiveIntensity: 1.4, roughness: 0.4 }),
+      gold: new THREE.MeshStandardMaterial({ color: 0xcbb578, metalness: 0.75, roughness: 0.26 }),
+      neon: new THREE.MeshStandardMaterial({ color: 0xb9a3ff, emissive: 0x9671ff, emissiveIntensity: 1.8 }),
+      water: new THREE.MeshStandardMaterial({ color: 0x4aafbb, metalness: 0.3, roughness: 0.16, transparent: true, opacity: 0.86 }),
+      leaf: new THREE.MeshStandardMaterial({ color: 0x71894d, roughness: 0.9 }),
+      xray: new THREE.MeshStandardMaterial({ color: 0x99d2e3, emissive: 0x15323e, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }),
+      beam: new THREE.MeshBasicMaterial({ color: 0xa99aff, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
     };
   }
 
-  initTiers() {
-    this.tierGroups.set(1, this.buildTier1Shack());
-    this.tierGroups.set(2, this.buildTier2Cottage());
-    this.tierGroups.set(3, this.buildTier3TwoStory());
-    this.tierGroups.set(4, this.buildTier4Villa());
-    this.tierGroups.set(5, this.buildTier5Citadel());
+  box(parent, size, position, material = 'cream', cut = false) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), this.materials[material]);
+    mesh.position.set(...position);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.originalMaterial = mesh.material;
+    mesh.userData.cutaway = cut;
+    parent.add(mesh);
+    return mesh;
+  }
 
-    for (const [id, grp] of this.tierGroups) {
-      grp.visible = false;
-      this.group.add(grp);
+  window(parent, x, y, z, width, height, side = false, cut = false) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    if (side) group.rotation.y = Math.PI / 2;
+    parent.add(group);
+    this.box(group, [width + 0.16, 0.12, 0.28], [0, -height / 2, 0], 'cream', cut);
+    this.box(group, [width + 0.16, 0.1, 0.2], [0, height / 2, 0], 'dark', cut);
+    for (const sign of [-1, 1]) this.box(group, [0.09, height, 0.18], [sign * width / 2, 0, 0], 'dark', cut);
+    this.box(group, [width, height, 0.025], [0, 0, 0], 'glass', cut).castShadow = false;
+    this.box(group, [0.05, height, 0.08], [0, 0, 0.025], 'dark', cut);
+  }
+
+  // A wall with actual openings: windows remain transparent from every camera angle.
+  wall(parent, width, height, x, z, material, side = false, cut = false, base = 0.5) {
+    const group = new THREE.Group();
+    group.position.set(x, base, z);
+    if (side) group.rotation.y = Math.PI / 2;
+    parent.add(group);
+    const sill = 1.05;
+    const windowHeight = height - 1.65;
+    this.box(group, [width, sill, 0.2], [0, sill / 2, 0], material, cut);
+    this.box(group, [width, 0.6, 0.2], [0, height - 0.3, 0], material, cut);
+    const openings = Math.max(2, Math.floor(width / 3.4));
+    const bay = width / openings;
+    for (let i = 0; i <= openings; i++) {
+      this.box(group, [0.3, windowHeight, 0.22], [-width / 2 + bay * i, sill + windowHeight / 2, 0], material, cut);
+      if (i < openings) this.window(group, -width / 2 + bay * (i + 0.5), sill + windowHeight / 2, 0, bay - 0.35, windowHeight, false, cut);
     }
+    this.box(group, [width, 0.1, 0.26], [0, 0.15, 0], 'dark', cut);
   }
 
-  // Tier 1: Starter Pod / Rustic Cabin (0 - 15m)
-  buildTier1Shack() {
-    const root = new THREE.Group();
-    root.name = 'tier_1_shack';
-
-    // Wooden plank floor
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.2, 5.2), this.materials.woodPlanks);
-    floor.position.y = 0.1;
-    floor.receiveShadow = true;
-    root.add(floor);
-
-    // Back wall
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.2, 0.2), this.materials.woodPlanks);
-    backWall.position.set(0, 1.7, -2.5);
-    backWall.castShadow = true;
-    backWall.receiveShadow = true;
-    root.add(backWall);
-
-    // Left wall
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 5.2), this.materials.woodPlanks);
-    leftWall.position.set(-3.0, 1.7, 0);
-    leftWall.castShadow = true;
-    leftWall.receiveShadow = true;
-    root.add(leftWall);
-
-    // Right wall with window opening
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 5.2), this.materials.woodPlanks);
-    rightWall.position.set(3.0, 1.7, 0);
-    rightWall.castShadow = true;
-    rightWall.receiveShadow = true;
-    root.add(rightWall);
-
-    // Front Wall (removable for cutaway)
-    const frontWallGrp = new THREE.Group();
-    frontWallGrp.name = 'front_wall';
-    const fwLeft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.2), this.materials.woodPlanks);
-    fwLeft.position.set(-2.0, 1.7, 2.5);
-    frontWallGrp.add(fwLeft);
-
-    const fwRight = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.2), this.materials.woodPlanks);
-    fwRight.position.set(2.0, 1.7, 2.5);
-    frontWallGrp.add(fwRight);
-
-    // Door beam
-    const doorTop = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 0.2), this.materials.woodPlanks);
-    doorTop.position.set(0, 2.9, 2.5);
-    frontWallGrp.add(doorTop);
-    root.add(frontWallGrp);
-
-    // Roof (removable for cutaway)
-    const roofGrp = new THREE.Group();
-    roofGrp.name = 'roof';
-    const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(5.2, 1.6, 4), this.materials.roofTin);
-    roofMesh.position.set(0, 4.0, 0);
-    roofMesh.rotation.y = Math.PI / 4;
-    roofMesh.castShadow = true;
-    roofGrp.add(roofMesh);
-    root.add(roofGrp);
-
-    // Porch Steps
-    const step = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 0.8), this.materials.darkWood);
-    step.position.set(0, 0.08, 3.0);
-    root.add(step);
-
-    return root;
+  plant(parent, x, y, z, scale = 1) {
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.2, 0.5, 8), this.materials.cream);
+    pot.position.set(x, y + 0.25 * scale, z);
+    pot.scale.setScalar(scale);
+    pot.castShadow = true;
+    parent.add(pot);
+    const shrub = new THREE.Mesh(new THREE.IcosahedronGeometry(0.44, 1), this.materials.leaf);
+    shrub.position.set(x, y + 0.8 * scale, z);
+    shrub.scale.set(scale, scale * 1.2, scale);
+    shrub.castShadow = true;
+    parent.add(shrub);
   }
 
-  // Tier 2: Cozy Suburban Cottage (15m - 1h)
-  buildTier2Cottage() {
-    const root = new THREE.Group();
-    root.name = 'tier_2_cottage';
-
-    // Brick Foundation
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.4, 7.2), this.materials.brickFoundation);
-    foundation.position.y = 0.2;
-    foundation.receiveShadow = true;
-    root.add(foundation);
-
-    // Main Floor
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.1, 7.0), this.materials.cedarSiding);
-    floor.position.y = 0.45;
-    root.add(floor);
-
-    // Back Wall
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(8.0, 3.8, 0.25), this.materials.cedarSiding);
-    backWall.position.set(0, 2.3, -3.4);
-    backWall.castShadow = true;
-    root.add(backWall);
-
-    // Left Wall
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.8, 7.0), this.materials.cedarSiding);
-    leftWall.position.set(-3.9, 2.3, 0);
-    leftWall.castShadow = true;
-    root.add(leftWall);
-
-    // Right Wall
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.8, 7.0), this.materials.cedarSiding);
-    rightWall.position.set(3.9, 2.3, 0);
-    rightWall.castShadow = true;
-    root.add(rightWall);
-
-    // Front Wall group
-    const frontWallGrp = new THREE.Group();
-    frontWallGrp.name = 'front_wall';
-    const fw = new THREE.Mesh(new THREE.BoxGeometry(8.0, 3.8, 0.25), this.materials.cedarSiding);
-    fw.position.set(0, 2.3, 3.4);
-    frontWallGrp.add(fw);
-    root.add(frontWallGrp);
-
-    // Roof & Chimney
-    const roofGrp = new THREE.Group();
-    roofGrp.name = 'roof';
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(6.6, 2.5, 4), this.materials.roofShingles);
-    roof.position.set(0, 5.2, 0);
-    roof.rotation.y = Math.PI / 4;
-    roofGrp.add(roof);
-
-    // Stone Chimney
-    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.7, 4.8, 0.7), this.materials.brickFoundation);
-    chimney.position.set(2.4, 4.6, -1.8);
-    chimney.castShadow = true;
-    roofGrp.add(chimney);
-    root.add(roofGrp);
-
-    // Front Covered Porch
-    const porchFloor = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.2, 1.8), this.materials.darkWood);
-    porchFloor.position.set(0, 0.3, 4.3);
-    root.add(porchFloor);
-
-    // Porch posts
-    const postGeom = new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8);
-    const postL = new THREE.Mesh(postGeom, this.materials.crispWhite);
-    postL.position.set(-1.8, 1.6, 5.0);
-    root.add(postL);
-
-    const postR = new THREE.Mesh(postGeom, this.materials.crispWhite);
-    postR.position.set(1.8, 1.6, 5.0);
-    root.add(postR);
-
-    return root;
-  }
-
-  // Tier 3: Two-Story Modern Residence (1h - 5h)
-  buildTier3TwoStory() {
-    const root = new THREE.Group();
-    root.name = 'tier_3_twostory';
-
-    // Concrete Base Slab
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(10.5, 0.4, 9.2), this.materials.concreteSlab);
-    slab.position.y = 0.2;
-    root.add(slab);
-
-    // Floor 1 Walls
-    const backWall1 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 3.2, 0.3), this.materials.slateGraphite);
-    backWall1.position.set(0, 2.0, -4.4);
-    root.add(backWall1);
-
-    const leftWall1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 9.0), this.materials.cedarSiding);
-    leftWall1.position.set(-5.0, 2.0, 0);
-    root.add(leftWall1);
-
-    const rightWall1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 9.0), this.materials.cedarSiding);
-    rightWall1.position.set(5.0, 2.0, 0);
-    root.add(rightWall1);
-
-    // Mid-level Floor divider
-    const floor2 = new THREE.Mesh(new THREE.BoxGeometry(10.4, 0.3, 9.2), this.materials.concreteSlab);
-    floor2.name = 'mid_floor';
-    floor2.position.set(0, 3.7, 0);
-    root.add(floor2);
-
-    // Floor 2 Walls
-    const backWall2 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 3.2, 0.3), this.materials.crispWhite);
-    backWall2.position.set(0, 5.4, -4.4);
-    root.add(backWall2);
-
-    const leftWall2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 6.5), this.materials.crispWhite);
-    leftWall2.position.set(-5.0, 5.4, -1.2);
-    root.add(leftWall2);
-
-    // Upper Balcony Deck & Glass Railing
-    const balconyDeck = new THREE.Mesh(new THREE.BoxGeometry(9.8, 0.15, 2.4), this.materials.terraceDeck);
-    balconyDeck.position.set(0, 3.9, 3.2);
-    root.add(balconyDeck);
-
-    const railing = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.9, 0.08), this.materials.glassClear);
-    railing.position.set(0, 4.4, 4.3);
-    root.add(railing);
-
-    // Front Wall group
-    const frontWallGrp = new THREE.Group();
-    frontWallGrp.name = 'front_wall';
-    const fw1 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 3.2, 0.3), this.materials.slateGraphite);
-    fw1.position.set(0, 2.0, 4.4);
-    frontWallGrp.add(fw1);
-
-    const fw2 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 3.2, 0.3), this.materials.crispWhite);
-    fw2.position.set(0, 5.4, 2.0);
-    frontWallGrp.add(fw2);
-    root.add(frontWallGrp);
-
-    // Modern Flat Roof with Solar Panels
-    const roofGrp = new THREE.Group();
-    roofGrp.name = 'roof';
-    const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(10.8, 0.4, 9.5), this.materials.slateGraphite);
-    roofSlab.position.set(0, 7.2, 0);
-    roofGrp.add(roofSlab);
-
-    const solar = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.08, 6.0), this.materials.solarPanels);
-    solar.position.set(0, 7.45, 0);
-    roofGrp.add(solar);
-    root.add(roofGrp);
-
-    return root;
-  }
-
-  // Tier 4: Modern Glass Villa (5h - 20h)
-  buildTier4Villa() {
-    const root = new THREE.Group();
-    root.name = 'tier_4_villa';
-
-    // Massive Marble/Concrete Foundation & Patio Deck
-    const patio = new THREE.Mesh(new THREE.BoxGeometry(14.5, 0.5, 12.5), this.materials.terraceDeck);
-    patio.position.y = 0.25;
-    root.add(patio);
-
-    // Turquoise Infinity Pool
-    const pool = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.3, 3.6), this.materials.poolWater);
-    pool.position.set(-4.2, 0.4, 3.8);
-    root.add(pool);
-
-    const poolRim = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.35, 4.0), this.materials.crispWhite);
-    poolRim.position.set(-4.2, 0.2, 3.8);
-    root.add(poolRim);
-
-    // Cantilevered Architectural Wings (Crisp White + Slate)
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(14.0, 4.5, 0.35), this.materials.slateGraphite);
-    backWall.position.set(0, 2.5, -5.8);
-    root.add(backWall);
-
-    const leftWing = new THREE.Mesh(new THREE.BoxGeometry(0.35, 4.5, 9.0), this.materials.crispWhite);
-    leftWing.position.set(-6.8, 2.5, -1.2);
-    root.add(leftWing);
-
-    const rightWing = new THREE.Mesh(new THREE.BoxGeometry(0.35, 4.5, 9.0), this.materials.crispWhite);
-    rightWing.position.set(6.8, 2.5, -1.2);
-    root.add(rightWing);
-
-    // Upper Overhanging Villa Box
-    const cantilever = new THREE.Mesh(new THREE.BoxGeometry(8.5, 3.2, 9.0), this.materials.slateGraphite);
-    cantilever.position.set(2.6, 6.2, 0.5);
-    root.add(cantilever);
-
-    // Front Wall & Panoramic Glass Panels
-    const frontWallGrp = new THREE.Group();
-    frontWallGrp.name = 'front_wall';
-    const glassFacade = new THREE.Mesh(new THREE.BoxGeometry(13.5, 4.2, 0.1), this.materials.glassClear);
-    glassFacade.position.set(0, 2.4, 4.8);
-    frontWallGrp.add(glassFacade);
-    root.add(frontWallGrp);
-
-    // Rooftop Lounge & Pergola
-    const roofGrp = new THREE.Group();
-    roofGrp.name = 'roof';
-    const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(14.5, 0.4, 11.5), this.materials.crispWhite);
-    roofSlab.position.set(0, 8.0, 0);
-    roofGrp.add(roofSlab);
-
-    // Pergola Beams
-    for (let b = -4; b <= 4; b += 1.5) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 6.0), this.materials.darkWood);
-      beam.position.set(b, 8.8, 0);
-      roofGrp.add(beam);
+  pitchedRoof(root, width, depth, base, rise) {
+    const roof = new THREE.Group();
+    root.add(roof);
+    const half = width / 2 + 0.5;
+    const slope = Math.atan2(rise, half);
+    for (const sign of [-1, 1]) {
+      const panel = this.box(roof, [Math.hypot(half, rise), 0.16, depth + 1], [sign * half / 2, base + rise / 2, 0], 'roof', true);
+      panel.rotation.z = -sign * slope;
+      const fascia = this.box(roof, [Math.hypot(half, rise), 0.23, 0.12], [sign * half / 2, base + rise / 2, depth / 2 + 0.5], 'cream', true);
+      fascia.rotation.z = -sign * slope;
     }
-    root.add(roofGrp);
-
-    return root;
+    for (const sign of [-1, 1]) {
+      const shape = new THREE.Shape();
+      shape.moveTo(-width / 2, 0); shape.lineTo(width / 2, 0); shape.lineTo(0, rise); shape.closePath();
+      const gable = new THREE.Mesh(new THREE.ShapeGeometry(shape), this.materials.cedar);
+      gable.material = this.materials.cedar.clone();
+      gable.material.side = THREE.DoubleSide;
+      gable.position.set(0, base, sign * depth / 2);
+      gable.castShadow = true; gable.userData.cutaway = true;
+      roof.add(gable);
+    }
+    this.box(roof, [0.15, 0.12, depth + 1.1], [0, base + rise, 0], 'dark', true);
+    this.box(roof, [0.65, 1.7, 0.7], [-width * 0.3, base + 0.9, -depth * 0.22], 'stone', true);
+    this.box(roof, [0.85, 0.18, 0.85], [-width * 0.3, base + 1.8, -depth * 0.22], 'dark', true);
   }
 
-  // Tier 5: Titan Sky Citadel (20h+)
-  buildTier5Citadel() {
+  buildTier(tier) {
+    if (this.tierGroups.has(tier)) return;
     const root = new THREE.Group();
-    root.name = 'tier_5_citadel';
-
-    // Monumental Multi-tiered Marble Platform
-    const baseP1 = new THREE.Mesh(new THREE.CylinderGeometry(11.0, 11.8, 0.6, 32), this.materials.marbleWhite);
-    baseP1.position.y = 0.3;
-    root.add(baseP1);
-
-    const baseP2 = new THREE.Mesh(new THREE.CylinderGeometry(9.8, 10.5, 0.5, 32), this.materials.goldTrim);
-    baseP2.position.y = 0.8;
-    root.add(baseP2);
-
-    // Colossal Fluted Marble Columns
-    const colGeom = new THREE.CylinderGeometry(0.4, 0.45, 8.5, 16);
-    const colCount = 10;
-    const colRadius = 8.5;
-    for (let i = 0; i < colCount; i++) {
-      const angle = (i / colCount) * Math.PI * 2;
-      const col = new THREE.Mesh(colGeom, this.materials.marbleWhite);
-      col.position.set(Math.cos(angle) * colRadius, 5.0, Math.sin(angle) * colRadius);
-
-      // Gold capital
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.35, 16), this.materials.goldTrim);
-      cap.position.set(Math.cos(angle) * colRadius, 9.2, Math.sin(angle) * colRadius);
-      root.add(col);
-      root.add(cap);
+    root.name = `house_tier_${tier}`;
+    const { width: w, depth: d, floor: f } = HOUSE_LAYOUTS[tier];
+    this.group.add(root);
+    this.tierGroups.set(tier, root);
+    if (tier === 5) this.buildCitadel(root, w, d, f);
+    else {
+      const rustic = tier < 3;
+      const h = tier === 1 ? 3.2 : tier === 2 ? 3.6 : 3.5;
+      this.box(root, [w + 0.45, f, d + 0.45], [0, f / 2, 0], 'stone');
+      this.box(root, [w, 0.08, d], [0, f, 0], 'wood');
+      this.wall(root, w, h, 0, -d / 2, rustic ? 'cedar' : 'dark', false, false, f);
+      this.wall(root, d, h, -w / 2, 0, rustic ? 'cedar' : 'cream', true, false, f);
+      this.wall(root, d, h, w / 2, 0, rustic ? 'cedar' : 'cream', true, true, f);
+      this.frontFacade(root, w, d, h, f, rustic);
+      // Exposed roofline and warm cove strip make the cut plane legible.
+      this.box(root, [w, 0.15, 0.28], [0, f + h, -d / 2], 'dark');
+      this.box(root, [w - 0.5, 0.035, 0.06], [0, f + h - 0.15, -d / 2 + 0.14], 'warm');
+      this.box(root, [0.28, 0.15, d], [-w / 2, f + h, 0], 'dark');
+      // Timber deck, steps and porch lighting.
+      this.box(root, [w + 1.1, 0.22, 1.8], [0, f - 0.12, d / 2 + 0.9], 'wood');
+      for (let i = 0; i < 3; i++) this.box(root, [2.6 + i * 0.3, 0.12, 0.45], [0, f - 0.1 - i * 0.13, d / 2 + 1.9 + i * 0.4], 'stone');
+      this.plant(root, -w / 2 + 0.65, f, d / 2 + 0.8);
+      this.plant(root, w / 2 - 0.65, f, d / 2 + 0.8);
+      if (rustic) {
+        this.pitchedRoof(root, w, d, f + h, tier === 1 ? 1.2 : 1.8);
+        for (const x of [-w / 2, w / 2]) this.box(root, [0.18, h, 0.18], [x, f + h / 2, -d / 2 + 0.04], 'dark');
+      } else this.buildUpperFloor(root, w, d, f, tier);
+      if (tier === 4) this.buildPool(root, w, d, f);
     }
-
-    // Glowing Neon Amethyst Trim Lines
-    const ringGeom = new THREE.TorusGeometry(8.5, 0.12, 12, 48);
-    const neonRing = new THREE.Mesh(ringGeom, this.materials.neonAmethyst);
-    neonRing.position.y = 1.05;
-    neonRing.rotation.x = Math.PI / 2;
-    root.add(neonRing);
-
-    // Floating Geometric Celestial Halo
-    const haloGeom = new THREE.TorusGeometry(7.2, 0.18, 16, 64);
-    const halo = new THREE.Mesh(haloGeom, this.materials.goldTrim);
-    halo.name = 'floating_halo';
-    halo.position.y = 12.5;
-    halo.rotation.x = Math.PI / 2;
-    root.add(halo);
-
-    // Vertical Celestial Energy Sky Beacon (shooting into space!)
-    const beaconGeom = new THREE.CylinderGeometry(1.2, 1.8, 45, 24, 1, true);
-    const beacon = new THREE.Mesh(beaconGeom, this.materials.skyBeacon);
-    beacon.position.y = 25.0;
-    root.add(beacon);
-
-    // Roof & Citadel Temple Dome
-    const roofGrp = new THREE.Group();
-    roofGrp.name = 'roof';
-    const domeGeom = new THREE.SphereGeometry(6.5, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    const dome = new THREE.Mesh(domeGeom, this.materials.goldTrim);
-    dome.position.y = 9.4;
-    roofGrp.add(dome);
-    root.add(roofGrp);
-
-    return root;
-  }
-
-  setTier(tierId, scaleFactor = 1.0) {
-    this.currentTier = tierId;
-    this.targetScale = scaleFactor;
-
-    for (const [id, grp] of this.tierGroups) {
-      grp.visible = (id === tierId);
-    }
-
+    root.traverse(child => {
+      if (child.isMesh && !child.userData.originalMaterial) child.userData.originalMaterial = child.material;
+    });
     this.applyViewMode(this.viewMode);
   }
 
-  setViewMode(mode) {
-    this.viewMode = mode; // 'cutaway' | 'exterior' | 'xray'
-    this.applyViewMode(mode);
-  }
-
-  applyViewMode(mode) {
-    for (const [id, grp] of this.tierGroups) {
-      grp.traverse((child) => {
-        if (child.name === 'roof' || child.name === 'front_wall' || child.name === 'mid_floor') {
-          if (mode === 'cutaway') {
-            child.visible = false;
-          } else if (mode === 'exterior') {
-            child.visible = true;
-            child.traverse((c) => {
-              if (c.isMesh) {
-                c.material.transparent = false;
-                c.material.opacity = 1.0;
-              }
-            });
-          } else if (mode === 'xray') {
-            child.visible = true;
-            child.traverse((c) => {
-              if (c.isMesh) {
-                c.material = this.materials.xrayMat;
-              }
-            });
-          }
-        }
-      });
+  frontFacade(root, w, d, h, f, rustic) {
+    const material = rustic ? 'cedar' : 'cream';
+    for (const sign of [-1, 1]) {
+      const wing = new THREE.Group();
+      wing.position.x = sign * (w / 4 + 0.55);
+      root.add(wing);
+      this.wall(wing, w / 2 - 1.1, h, 0, d / 2, material, false, true, f);
+    }
+    this.box(root, [2.2, h - 2.65, 0.2], [0, f + 2.65 + (h - 2.65) / 2, d / 2], material, true);
+    this.box(root, [1.9, 2.6, 0.1], [0, f + 1.3, d / 2], 'dark', true);
+    this.box(root, [1.5, 1.8, 0.03], [0, f + 1.55, d / 2 + 0.07], 'glass', true);
+    this.box(root, [0.04, 0.45, 0.08], [0.65, f + 1.15, d / 2 + 0.12], 'gold', true);
+    for (const sign of [-1, 1]) {
+      this.box(root, [0.18, 0.48, 0.22], [sign * 1.4, f + 2.25, d / 2 + 0.16], 'dark', true);
+      this.box(root, [0.14, 0.32, 0.23], [sign * 1.4, f + 2.25, d / 2 + 0.18], 'warm', true);
     }
   }
 
-  update(delta) {
-    // Smooth architectural scale interpolation
-    this.currentScale += (this.targetScale - this.currentScale) * Math.min(1.0, delta * 4.0);
-    this.group.scale.set(this.currentScale, this.currentScale, this.currentScale);
+  buildUpperFloor(root, w, d, f, tier) {
+    const y = f + 3.75;
+    const upperDepth = d * 0.44;
+    const z = -d * 0.28;
+    const upperWidth = tier === 4 ? w * 0.72 : w;
+    const x = tier === 4 ? w * 0.14 : 0;
+    this.box(root, [upperWidth + 0.4, 0.24, upperDepth], [x, y, z], 'cream', true);
+    this.wall(root, upperWidth, 2.8, x, -d / 2, 'cream', false, false, y);
+    this.wall(root, upperDepth, 2.8, x - upperWidth / 2, z, 'dark', true, false, y);
+    this.wall(root, upperDepth, 2.8, x + upperWidth / 2, z, 'dark', true, true, y);
+    this.wall(root, upperWidth, 2.8, x, z + upperDepth / 2, 'dark', false, true, y);
+    const balconyZ = z + upperDepth / 2 + 0.8;
+    this.box(root, [upperWidth, 0.16, 1.6], [x, y - 0.03, balconyZ], 'wood', true);
+    this.box(root, [upperWidth, 0.8, 0.04], [x, y + 0.45, balconyZ + 0.75], 'glass', true);
+    this.box(root, [upperWidth, 0.06, 0.06], [x, y + 0.87, balconyZ + 0.75], 'dark', true);
+    for (let i = 0; i < 5; i++) this.box(root, [0.05, 0.9, 0.05], [x - upperWidth / 2 + upperWidth * i / 4, y + 0.42, balconyZ + 0.75], 'dark', true);
+    this.box(root, [upperWidth + 0.8, 0.3, upperDepth + 1.1], [x, y + 2.95, z + 0.1], 'cream', true);
+    this.box(root, [upperWidth - 0.8, 0.06, upperDepth - 0.7], [x, y + 3.13, z], 'dark', true);
+    // Solar array: shared frame with inset cells.
+    for (let i = 0; i < 6; i++) this.box(root, [(upperWidth - 1.3) / 6, 0.04, upperDepth - 1], [x - (upperWidth - 1) / 2 + (i + 0.5) * (upperWidth - 1) / 6, y + 3.18, z], 'glass', true);
+    if (tier === 4) {
+      for (const x of [-w * 0.53, -w * 0.27]) {
+        this.box(root, [0.14, 0.18, d * 0.65], [x, y + 2.5, 0], 'wood', true);
+        for (const z of [-d * 0.3, d * 0.3]) this.box(root, [0.14, y + 2.5 - f, 0.14], [x, (y + 2.5 + f) / 2, z], 'dark', true);
+      }
+      for (let i = 0; i < 7; i++) this.box(root, [w * 0.28, 0.12, 0.14], [-w * 0.4, y + 2.65, -d * 0.28 + i * d * 0.09], 'wood', true);
+    }
+  }
 
-    // Rotate celestial halo in Titan Citadel
-    const citadel = this.tierGroups.get(5);
-    if (citadel && citadel.visible) {
-      const halo = citadel.getObjectByName('floating_halo');
-      if (halo) {
-        halo.rotation.z += delta * 0.4;
+  buildPool(root, w, d, f) {
+    const x = w / 2 + 2.25;
+    this.box(root, [4.3, 0.35, d + 1.8], [x, f - 0.2, 0.7], 'stone');
+    this.box(root, [3.4, 0.12, 7.2], [x, f, 1], 'dark');
+    const water = this.box(root, [3.1, 0.035, 6.9], [x, f + 0.08, 1], 'water');
+    water.castShadow = false;
+    water.name = 'pool_water';
+    for (let i = 0; i < 5; i++) this.box(root, [3.05, 0.008, 0.025], [x, f + 0.11, -1.5 + i * 1.25], 'glass');
+    this.box(root, [1.2, 0.16, 2], [x, f + 0.1, -4.2], 'wood');
+    this.plant(root, x, f, d / 2 + 0.8, 1.2);
+  }
+
+  buildCitadel(root, w, d, f) {
+    for (const [radius, y, height, material] of [[11, 0.2, 0.4, 'dark'], [10.5, 0.55, 0.3, 'gold'], [10, f - 0.08, 0.25, 'stone']]) {
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + 0.2, height, 64), this.materials[material]);
+      disc.position.y = y; disc.castShadow = disc.receiveShadow = true; root.add(disc);
+    }
+    this.box(root, [w, 0.1, d], [0, f, 0], 'wood');
+    this.wall(root, w * 0.9, 6, 0, -d / 2, 'cream', false, false, f);
+    this.wall(root, d, 6, -w / 2, 0, 'dark', true, false, f);
+    for (let i = 0; i < 12; i++) {
+      const angle = i / 12 * Math.PI * 2;
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 8, 12), this.materials.cream);
+      column.position.set(Math.cos(angle) * 9.2, f + 4, Math.sin(angle) * 9.2);
+      column.castShadow = true;
+      column.userData.cutaway = Math.sin(angle) > 0.1 || Math.cos(angle) > 0.8;
+      root.add(column);
+      for (const y of [f + 0.2, f + 7.8]) {
+        const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.25, 12), this.materials.gold);
+        capital.position.set(column.position.x, y, column.position.z);
+        capital.userData.cutaway = column.userData.cutaway;
+        root.add(capital);
       }
     }
+    const ring = (radius, tube, y, material, cut) => {
+      const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 8, 64), this.materials[material]);
+      mesh.rotation.x = Math.PI / 2; mesh.position.y = y; mesh.userData.cutaway = cut; root.add(mesh); return mesh;
+    };
+    ring(9.4, 0.07, f + 0.1, 'neon', false);
+    ring(9.35, 0.24, f + 8.2, 'gold', true);
+    const halo = ring(6.7, 0.08, f + 11, 'gold', false);
+    halo.name = 'floating_halo';
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(6.8, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), this.materials.glass);
+    dome.position.y = f + 8.2; dome.userData.cutaway = true; root.add(dome);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), this.materials.neon);
+    core.position.set(0, f + 11, 0); root.add(core);
+    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.7, 5, 24, 1, true), this.materials.beam);
+    beacon.position.y = f + 13; root.add(beacon);
+    for (const x of [-8, 8]) this.plant(root, x, f, 5, 1.8);
+  }
+
+  setTier(tierId, scaleFactor = 1) {
+    const tier = HOUSE_LAYOUTS[tierId] ? tierId : 1;
+    this.buildTier(tier);
+    this.currentTier = tier;
+    this.targetScale = Math.max(0.5, Number(scaleFactor) || 1);
+    for (const [id, group] of this.tierGroups) group.visible = id === tier;
+  }
+
+  setViewMode(mode) { this.viewMode = mode; this.applyViewMode(mode); }
+
+  applyViewMode(mode) {
+    for (const group of this.tierGroups.values()) group.traverse(child => {
+      if (!child.isMesh) return;
+      const original = child.userData.originalMaterial;
+      child.visible = !(mode === 'cutaway' && child.userData.cutaway);
+      // Never mutate shared materials; every mode is reversible.
+      child.material = mode === 'xray' && child.userData.cutaway ? this.materials.xray : original;
+    });
+  }
+
+  update(delta, reducedMotion = false) {
+    this.elapsed += delta;
+    this.currentScale = reducedMotion ? this.targetScale : THREE.MathUtils.damp(this.currentScale, this.targetScale, 5, delta);
+    this.group.scale.setScalar(this.currentScale);
+    const halo = this.tierGroups.get(5)?.getObjectByName('floating_halo');
+    if (halo && !reducedMotion) halo.rotation.z = Math.sin(this.elapsed * 0.35) * 0.12;
   }
 }
